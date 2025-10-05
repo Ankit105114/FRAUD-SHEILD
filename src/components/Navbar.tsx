@@ -1,11 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X } from "lucide-react";
+import { Shield, Menu, X, Moon, Sun } from "lucide-react";
 import { useState } from "react";
+import { useTheme } from "next-themes";
 
 export const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
   
   const isActive = (path: string) => location.pathname === path;
 
@@ -44,6 +46,16 @@ export const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="w-9 h-9"
+            >
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
             <Link to="/login">
               <Button variant="ghost">Login</Button>
             </Link>
@@ -87,6 +99,23 @@ export const Navbar = () => {
                   Get Started
                 </Button>
               </Link>
+              <Button
+                variant="outline"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="w-full"
+              >
+                {theme === "dark" ? (
+                  <>
+                    <Sun className="h-4 w-4 mr-2" />
+                    Light Mode
+                  </>
+                ) : (
+                  <>
+                    <Moon className="h-4 w-4 mr-2" />
+                    Dark Mode
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         )}
