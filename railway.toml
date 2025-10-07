@@ -1,11 +1,18 @@
 name = "fraudshield-api"
 
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd backend && npm start"
+
 [[services]]
 type = "web"
 name = "backend"
 runtime = "node"
-buildCommand = "cd backend && npm install"
+buildCommand = "npm install"
 startCommand = "cd backend && npm start"
+workingDirectory = "backend"
 
 [[services.envVars]]
 key = "NODE_ENV"
