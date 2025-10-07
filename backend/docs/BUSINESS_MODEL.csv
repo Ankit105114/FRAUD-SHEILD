@@ -1,0 +1,47 @@
+Section,TAM,SAM,SOM,Category,Numerical_Value,Unit,Details,Text_Description
+Market Analysis,TAM,200000000000,USD,Global FinTech Market growing 20% annually,Global FinTech Market: $200B+ (growing 20% annually)
+Market Analysis,SAM,50000000000,USD,Fraud Detection Market by 2025,Fraud Detection Market: $50B+ by 2025
+Market Analysis,SOM,10000000000,USD,Real-Time Analytics Segment,Real-Time Analytics Segment: High-growth portion (~$10B)
+Market Analysis,Market_Growth_Rate,20,%,Annual growth for FinTech,Annual growth for FinTech
+Revenue Streams,SaaS_Subscriptions_Tier1,99,USD/month,Lowest tier,SaaS Subscriptions: $99-$999/month per tier
+Revenue Streams,SaaS_Subscriptions_Tier3,999,USD/month,Highest tier,SaaS Subscriptions: $99-$999/month per tier
+Revenue Streams,Transaction_Fees_Min,0.01,USD/transaction,Minimum fee,Transaction Fees: $0.01-$0.10 per analyzed transaction
+Revenue Streams,Transaction_Fees_Max,0.10,USD/transaction,Maximum fee,Transaction Fees: $0.01-$0.10 per analyzed transaction
+Revenue Streams,Setup_Services_Min,5000,USD/one-time,Minimum setup,Setup Services: $5,000-$50,000 one-time
+Revenue Streams,Setup_Services_Max,50000,USD/one-time,Maximum setup,Setup Services: $5,000-$50,000 one-time
+Competitive Analysis,FIS_Market_Share,15,%,Estimated share,FIS: Legacy, Batch-based, High cost
+Competitive Analysis,ACI_Market_Share,10,%,Estimated share,ACI Worldwide: ML-heavy, Expensive infrastructure
+Competitive Analysis,Stripe_Radar_Market_Share,5,%,Estimated share,Stripe Radar: Integrated but limited to payments
+Competitive Analysis,FraudShield_Advantage_Speed,100,ms,Response time,FraudShield: Real-time, Multi-algorithm, Cost-effective
+Competitive Analysis,FraudShield_Accuracy,99.9,%,Detection rate,FraudShield: Real-time, Multi-algorithm, Cost-effective
+User Segmentation,Enterprise_Count,500,employees,Segment size,Enterprise (500+ employees): Full-featured solution
+User Segmentation,MidMarket_Count,300,employees,Average size,Mid-Market (50-500 employees): Core fraud detection
+User Segmentation,SmallBusiness_Count,25,employees,Average size,Small Business (10-50 employees): Essential monitoring
+User Segmentation,Individual_Users_Count,1000000,users,Estimated base,Individual Users: Basic transaction alerts
+NPS,Overall_NPS,75,score,Net Promoter Score,Overall NPS: 75 (Promoters: 80%, Detractors: 5%)
+NPS,Enterprise_NPS,85,score,Segment NPS,Enterprise Segment: 85
+NPS,MidMarket_NPS,70,score,Segment NPS,Mid-Market: 70
+NPS,SmallBusiness_NPS,60,score,Segment NPS,Small Business: 60
+NPS,Promoters_Percentage,80,%,Breakdown,Promoters: 80%
+NPS,Detractors_Percentage,5,%,Breakdown,Detractors: 5%
+Value Proposition,Response_Time,100,ms,Vs competitors,Real-Time Processing: Sub-100ms vs competitors' batch
+Value Proposition,Accuracy_Improvement,15,%,Vs single-model,Multi-Algorithm Approach: Higher accuracy
+Value Proposition,Cost_Savings,50,%,Vs expensive ML,Cost-Effective: No expensive ML needed
+Cost Structure,Development_Costs_Min,50000,USD,Initial,Development Costs: $50K-$100K initial
+Cost Structure,Development_Costs_Max,100000,USD,Initial,Development Costs: $50K-$100K initial
+Cost Structure,Operational_Costs,10000,USD/month,Servers and APIs,Operational Costs: $10K/month (servers, APIs)
+Cost Structure,Marketing_Costs,20000,USD/month,Acquisition,Marketing: $20K/month
+Key Metrics,MRR_Year1_Target,500000,USD/month,Target,Monthly Recurring Revenue (MRR): Target $500K in Year 1
+Key Metrics,CAC_Min,200,USD,Customer Acquisition,Customer Acquisition Cost (CAC): $200-500
+Key Metrics,CAC_Max,500,USD,Customer Acquisition,Customer Acquisition Cost (CAC): $200-500
+Key Metrics,Churn_Rate,5,%,Target,Churn Rate: <5%
+Key Metrics,LTV_Multiplier,5,x CAC,Lifetime Value,Lifetime Value (LTV): 5x CAC
+Financial Projections,Year1_Revenue,2000000,USD,Total,Year 1 Revenue: $2M
+Financial Projections,Year2_Revenue,10000000,USD,Total,Year 2: $10M
+Financial Projections,Year3_Revenue,50000000,USD,Total,Year 3: $50M
+Financial Projections,BreakEven_Months,12,months,Time to break-even,Break-even in 12 months
+Financial Projections,Market_Penetration_Year3,20,%,Target,Based on 20% market penetration
+SWOT Analysis,Strength_Score,9,/10,Internal rating,Strengths: Real-time speed, Accuracy, Affordability
+SWOT Analysis,Weakness_Score,3,/10,Internal rating,Weaknesses: New market entrant
+SWOT Analysis,Opportunity_Score,8,/10,Internal rating,Opportunities: Expand to crypto/blockchain
+SWOT Analysis,Threat_Score,6,/10,Internal rating,Threats: Established competitors, Regulatory changes

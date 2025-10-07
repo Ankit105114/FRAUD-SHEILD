@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraudShield - User Dashboard Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .profile-circle-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .profile-circle {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .profile-circle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .user-initials {
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .profile-dropdown {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            min-width: 250px;
+            z-index: 1000;
+            padding: 20px;
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: fadeInDown 0.3s ease forwards;
+        }
+
+        @keyframes fadeInDown {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-info {
+            margin-bottom: 15px;
+        }
+
+        .profile-name {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .profile-email {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .profile-role {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .profile-dropdown hr {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 15px 0;
+        }
+
+        .profile-dropdown button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .profile-dropdown button:hover {
+            background: #f8f9fa;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .welcome-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+        }
+
+        .error {
+            background: #ff4757;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">🚀 FraudShield</div>
+        <div id="auth-section">
+            <!-- Profile circle or login button will be inserted here -->
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div id="content">
+            <div class="loading">Loading dashboard...</div>
+        </div>
+    </div>
+
+    <script>
+        class FraudShieldApp {
+            constructor() {
+                this.user = null;
+                this.token = null;
+                this.isLoggedIn = false;
+                this.init();
+            }
+
+            init() {
+                // Check if user is already logged in
+                this.checkAuthStatus();
+                this.setupEventListeners();
+            }
+
+            checkAuthStatus() {
+                const token = localStorage.getItem('token');
+                const userStr = localStorage.getItem('user');
+
+                if (token && userStr) {
+                    try {
+                        this.user = JSON.parse(userStr);
+                        this.token = token;
+                        this.isLoggedIn = true;
+                        this.showDashboard();
+                    } catch (e) {
+                        this.showLoginForm();
+                    }
+                } else {
+                    this.showLoginForm();
+                }
+            }
+
+            setupEventListeners() {
+                // Handle clicks outside profile dropdown to close it
+                document.addEventListener('click', (e) => {
+                    const dropdown = document.querySelector('.profile-dropdown');
+                    if (dropdown && !e.target.closest('.profile-circle-container')) {
+                        dropdown.remove();
+                    }
+                });
+            }
+
+            showLoginForm() {
+                const authSection = document.getElementById('auth-section');
+                const content = document.getElementById('content');
+
+                authSection.innerHTML = `
+                    <button class="btn" onclick="app.showLoginModal()">Login / Register</button>
+                `;
+
+                content.innerHTML = `
+                    <div class="welcome-card">
+                        <h1>Welcome to FraudShield</h1>
+                        <p>Advanced AI-powered fraud detection system</p>
+                        <button class="btn" onclick="app.showLoginModal()">Get Started</button>
+                    </div>
+                `;
+            }
+
+            showLoginModal() {
+                // Create modal overlay
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                `;
+
+                modal.innerHTML = `
+                    <div style="background: white; padding: 2rem; border-radius: 15px; min-width: 400px;">
+                        <h2>Login to FraudShield</h2>
+                        <form id="login-form">
+                            <div style="margin: 1rem 0;">
+                                <input type="email" id="email" placeholder="Email" required
+                                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <input type="password" id="password" placeholder="Password" required
+                                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <button type="submit" class="btn" style="width: 100%;">Login</button>
+                            </div>
+                            <div style="text-align: center; margin-top: 1rem;">
+                                <button type="button" onclick="app.showRegisterModal()"
+                                        style="background: none; border: none; color: #667eea; cursor: pointer;">Create Account</button>
+                            </div>
+                        </form>
+                        <div id="login-error" style="display: none; color: #ff4757; margin-top: 1rem;"></div>
+                    </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                // Handle form submission
+                document.getElementById('login-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.handleLogin();
+                });
+
+                // Close modal on outside click
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            }
+
+            async handleLogin() {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                try {
+                    const response = await fetch('http://localhost:3001/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        this.user = data.data.user;
+                        this.token = data.data.token;
+                        localStorage.setItem('user', JSON.stringify(this.user));
+                        localStorage.setItem('token', this.token);
+                        this.isLoggedIn = true;
+
+                        document.querySelector('div[style*="position: fixed"]').remove();
+                        this.showDashboard();
+                    } else {
+                        document.getElementById('login-error').textContent = data.message;
+                        document.getElementById('login-error').style.display = 'block';
+                    }
+                } catch (error) {
+                    document.getElementById('login-error').textContent = 'Login failed. Please try again.';
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            }
+
+            async showRegisterModal() {
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                `;
+
+                modal.innerHTML = `
+                    <div style="background: white; padding: 2rem; border-radius: 15px; min-width: 400px;">
+                        <h2>Create FraudShield Account</h2>
+                        <form id="register-form">
+                            <div style="margin: 1rem 0;">
+                                <input type="text" id="name" placeholder="Full Name" required
+                                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <input type="email" id="reg-email" placeholder="Email" required
+                                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <input type="password" id="reg-password" placeholder="Password (min 6 chars)" required
+                                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;">
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <button type="submit" class="btn" style="width: 100%;">Create Account</button>
+                            </div>
+                            <div style="text-align: center; margin-top: 1rem;">
+                                <button type="button" onclick="app.showLoginModal()"
+                                        style="background: none; border: none; color: #667eea; cursor: pointer;">Back to Login</button>
+                            </div>
+                        </form>
+                        <div id="register-error" style="display: none; color: #ff4757; margin-top: 1rem;"></div>
+                    </div>
+                `;
+
+                document.querySelector('div[style*="position: fixed"]').remove();
+                document.body.appendChild(modal);
+
+                document.getElementById('register-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.handleRegister();
+                });
+            }
+
+            async handleRegister() {
+                const name = document.getElementById('name').value;
+                const email = document.getElementById('reg-email').value;
+                const password = document.getElementById('reg-password').value;
+
+                try {
+                    const response = await fetch('http://localhost:3001/api/auth/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ name, email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        this.user = data.data.user;
+                        this.token = data.data.token;
+                        localStorage.setItem('user', JSON.stringify(this.user));
+                        localStorage.setItem('token', this.token);
+                        this.isLoggedIn = true;
+
+                        document.querySelector('div[style*="position: fixed"]').remove();
+                        this.showDashboard();
+                    } else {
+                        document.getElementById('register-error').textContent = data.message;
+                        document.getElementById('register-error').style.display = 'block';
+                    }
+                } catch (error) {
+                    document.getElementById('register-error').textContent = 'Registration failed. Please try again.';
+                    document.getElementById('register-error').style.display = 'block';
+                }
+            }
+
+            showProfileCircle() {
+                const authSection = document.getElementById('auth-section');
+
+                const getInitials = (name) => {
+                    return name
+                        .split(' ')
+                        .map(n => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2);
+                };
+
+                authSection.innerHTML = `
+                    <div class="profile-circle-container">
+                        <div class="profile-circle" onclick="app.toggleProfileDropdown()">
+                            <span class="user-initials">${getInitials(this.user.name)}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            toggleProfileDropdown() {
+                const existingDropdown = document.querySelector('.profile-dropdown');
+                if (existingDropdown) {
+                    existingDropdown.remove();
+                    return;
+                }
+
+                const dropdown = document.createElement('div');
+                dropdown.className = 'profile-dropdown';
+                dropdown.innerHTML = `
+                    <div class="profile-info">
+                        <div class="profile-name">${this.user.name}</div>
+                        <div class="profile-email">${this.user.email}</div>
+                        <div class="profile-role">${this.user.role}</div>
+                    </div>
+                    <hr>
+                    <button onclick="app.showDashboard()">🏠 Dashboard</button>
+                    <button onclick="app.showProfile()">👤 Profile Settings</button>
+                    <button onclick="app.showActivity()">📊 Activity</button>
+                    <button onclick="app.logout()" style="color: #ff4757;">🚪 Logout</button>
+                `;
+
+                document.querySelector('.profile-circle-container').appendChild(dropdown);
+            }
+
+            async showDashboard() {
+                this.showProfileCircle();
+
+                const content = document.getElementById('content');
+                content.innerHTML = '<div class="loading">Loading dashboard...</div>';
+
+                try {
+                    const response = await fetch('http://localhost:3001/api/auth/dashboard', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        const dashboard = data.data;
+
+                        content.innerHTML = `
+                            <div class="welcome-card">
+                                <h1>Welcome back, ${dashboard.user.name}!</h1>
+                                <p>Here's your FraudShield dashboard overview</p>
+                            </div>
+
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <div class="stat-number">${dashboard.statistics.totalTransactions}</div>
+                                    <div class="stat-label">Total Transactions</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number">${dashboard.statistics.safeTransactions}</div>
+                                    <div class="stat-label">Safe Transactions</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number">${dashboard.statistics.flaggedTransactions}</div>
+                                    <div class="stat-label">Flagged Transactions</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-number">${dashboard.statistics.averageRiskScore}%</div>
+                                    <div class="stat-label">Avg Risk Score</div>
+                                </div>
+                            </div>
+
+                            <div class="welcome-card">
+                                <h3>Quick Actions</h3>
+                                <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                                    <button class="btn" onclick="app.submitTransaction()">Submit New Transaction</button>
+                                    <button class="btn" onclick="app.viewAnalytics()">View Analytics</button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        content.innerHTML = `<div class="error">Failed to load dashboard: ${data.message}</div>`;
+                    }
+                } catch (error) {
+                    content.innerHTML = `<div class="error">Error loading dashboard. Please try again.</div>`;
+                }
+            }
+
+            async submitTransaction() {
+                alert('Transaction submission form would open here!\n\nThis would allow users to submit new transactions for fraud analysis.');
+            }
+
+            async viewAnalytics() {
+                alert('Analytics dashboard would open here!\n\nThis would show detailed fraud analytics and reports.');
+            }
+
+            async showProfile() {
+                alert('Profile settings would open here!\n\nUsers can update their profile information, change passwords, etc.');
+            }
+
+            async showActivity() {
+                alert('Activity history would show here!\n\nUsers can view their transaction history and activity logs.');
+            }
+
+            logout() {
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+                this.user = null;
+                this.token = null;
+                this.isLoggedIn = false;
+                document.querySelector('.profile-dropdown')?.remove();
+                this.showLoginForm();
+            }
+        }
+
+        // Initialize the app
+        const app = new FraudShieldApp();
+
+        // Make app globally available for onclick handlers
+        window.app = app;
+    </script>
+</body>
+</html>

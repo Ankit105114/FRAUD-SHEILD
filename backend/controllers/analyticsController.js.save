@@ -1,0 +1,452 @@
+import Transaction from '../models/Transaction.js';
+import { TRANSACTION_STATUS } from '../config/constants.js';
+import fraudDetectionEngine from '../services/fraudDetectionEngine.js';
+import realtimeSyncService from '../services/realtimeSync.js';
+
+/**
+ * @route   GET /api/analytics/dashboard
+ * @desc    Get dashboard statistics
+ * @access  Private (Admin role)
+ */
+export const getDashboardStats = async (req, res) => {
+  try {
+    const [totalTransactions, fraudDetected, safeTransactions, underReview] = await Promise.all([
+      Transaction.countDocuments(),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.FRAUD }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.SAFE }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.UNDER_REVIEW })
+    ]);
+
+    const detectionRate = totalTransactions > 0 
+      ? (fraudDetected / totalTransactions) * 100 
+      : 0;
+
+    res.json({
+      totalTransactions,
+      fraudDetected,
+      safeTransactions,
+      underReview,
+      detectionRate: parseFloat(detectionRate.toFixed(2))
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-funnel
+ * @desc    Get fraud detection funnel data
+ * @access  Private (Admin/Analyst)
+ */
+export const getFraudFunnel = async (req, res) => {
+    const funnelData = await Transaction.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    res.json(funnelData);
+  } catch (error) {
+    console.error('Error fetching fraud funnel:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-by-region
+ * @desc    Get fraud distribution by region
+ * @access  Private (Admin/Analyst)
+ */
+export const getFraudByRegion = async (req, res) => {
+  try {
+    const regionData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      { $group: { _id: '$region', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    res.json(regionData);
+  } catch (error) {
+    console.error('Error fetching fraud by region:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/channel-analysis
+ * @desc    Get fraud analysis by channel
+ * @access  Private (Admin/Analyst)
+ */
+export const getChannelAnalysis = async (req, res) => {
+  try {
+    const channelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$channel',
+          total: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $project: {
+          channel: '$_id',
+          total: 1,
+          fraudCount: 1,
+          fraudRate: { $multiply: [{ $divide: ['$fraudCount', '$total'] }, 100] }
+        }
+      }
+    ]);
+    
+    res.json(channelData);
+  } catch (error) {
+    console.error('Error fetching channel analysis:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/customer-segmentation
+ * @desc    Get fraud distribution by customer segments
+ * @access  Private (Admin/Analyst)
+ */
+export const getCustomerSegmentation = async (req, res) => {
+  try {
+    const segmentData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      {
+        $group: {
+          _id: {
+            ageGroup: '$customer.ageGroup',
+            incomeLevel: '$customer.incomeLevel'
+          },
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.ageGroup',
+          segments: {
+            $push: {
+              incomeLevel: '$_id.incomeLevel',
+              count: '$count',
+              totalAmount: '$totalAmount'
+            }
+          },
+          total: { $sum: '$count' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    res.json(segmentData);
+  } catch (error) {
+    console.error('Error fetching customer segmentation:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/time-trend
+ * @desc    Get fraud trends over time
+ * @access  Private (Admin/Analyst)
+ */
+export const getTimeTrend = async (req, res) => {
+  try {
+    const { period = 'day' } = req.query;
+    let dateFormat = '%Y-%m-%d'; // Default to daily
+    
+    if (period === 'week') {
+      dateFormat = '%Y-%U'; // Weekly
+    } else if (period === 'month') {
+      dateFormat = '%Y-%m'; // Monthly
+    } else if (period === 'hour') {
+      dateFormat = '%Y-%m-%dT%H:00:00Z'; // Hourly
+    }
+
+    const timeTrend = await Transaction.aggregate([
+      {
+        $match: {
+          status: TRANSACTION_STATUS.FRAUD,
+          timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: dateFormat, date: '$timestamp' }
+          },
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json(timeTrend);
+  } catch (error) {
+    console.error('Error fetching time trend:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-network
+ * @desc    Get fraud network statistics
+ * @access  Private (Admin)
+ */
+export const getFraudNetworkStats = async (req, res) => {
+  try {
+    const networkStats = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      {
+        $group: {
+          _id: null,
+          uniqueDevices: { $addToSet: '$deviceId' },
+          uniqueIPs: { $addToSet: '$ipAddress' },
+          uniqueCards: { $addToSet: '$cardNumber' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          uniqueDevices: { $size: '$uniqueDevices' },
+          uniqueIPs: { $size: '$uniqueIPs' },
+          uniqueCards: { $size: '$uniqueCards' }
+        }
+      }
+    ]);
+
+    res.json(networkStats[0] || { uniqueDevices: 0, uniqueIPs: 0, uniqueCards: 0 });
+  } catch (error) {
+    console.error('Error fetching fraud network stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+EOLcat > controllers/analyticsController.js << 'EOL'
+import Transaction from '../models/Transaction.js';
+import { TRANSACTION_STATUS } from '../config/constants.js';
+import fraudDetectionEngine from '../services/fraudDetectionEngine.js';
+import realtimeSyncService from '../services/realtimeSync.js';
+
+/**
+ * @route   GET /api/analytics/dashboard
+ * @desc    Get dashboard statistics
+ * @access  Private (Admin role)
+ */
+export const getDashboardStats = async (req, res) => {
+  try {
+    const [totalTransactions, fraudDetected, safeTransactions, underReview] = await Promise.all([
+      Transaction.countDocuments(),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.FRAUD }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.SAFE }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.UNDER_REVIEW })
+    ]);
+
+    const detectionRate = totalTransactions > 0 
+      ? (fraudDetected / totalTransactions) * 100 
+      : 0;
+
+    res.json({
+      totalTransactions,
+      fraudDetected,
+      safeTransactions,
+      underReview,
+      detectionRate: parseFloat(detectionRate.toFixed(2))
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-funnel
+ * @desc    Get fraud detection funnel data
+ * @access  Private (Admin/Analyst)
+ */
+export const getFraudFunnel = async (req, res) => {
+  try {
+    const funnelData = await Transaction.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    res.json(funnelData);
+  } catch (error) {
+    console.error('Error fetching fraud funnel:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-by-region
+ * @desc    Get fraud distribution by region
+ * @access  Private (Admin/Analyst)
+ */
+export const getFraudByRegion = async (req, res) => {
+  try {
+    const regionData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      { $group: { _id: '$region', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    res.json(regionData);
+  } catch (error) {
+    console.error('Error fetching fraud by region:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/channel-analysis
+ * @desc    Get fraud analysis by channel
+ * @access  Private (Admin/Analyst)
+ */
+export const getChannelAnalysis = async (req, res) => {
+  try {
+    const channelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$channel',
+          total: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $project: {
+          channel: '$_id',
+          total: 1,
+          fraudCount: 1,
+          fraudRate: { $multiply: [{ $divide: ['$fraudCount', '$total'] }, 100] }
+        }
+      }
+    ]);
+    
+    res.json(channelData);
+  } catch (error) {
+    console.error('Error fetching channel analysis:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/customer-segmentation
+ * @desc    Get fraud distribution by customer segments
+ * @access  Private (Admin/Analyst)
+ */
+export const getCustomerSegmentation = async (req, res) => {
+  try {
+    const segmentData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      {
+        $group: {
+          _id: {
+            ageGroup: '$customer.ageGroup',
+            incomeLevel: '$customer.incomeLevel'
+          },
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.ageGroup',
+          segments: {
+            $push: {
+              incomeLevel: '$_id.incomeLevel',
+              count: '$count',
+              totalAmount: '$totalAmount'
+            }
+          },
+          total: { $sum: '$count' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    res.json(segmentData);
+  } catch (error) {
+    console.error('Error fetching customer segmentation:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/time-trend
+ * @desc    Get fraud trends over time
+ * @access  Private (Admin/Analyst)
+ */
+export const getTimeTrend = async (req, res) => {
+  try {
+    const { period = 'day' } = req.query;
+    let dateFormat = '%Y-%m-%d'; // Default to daily
+    
+    if (period === 'week') {
+      dateFormat = '%Y-%U'; // Weekly
+    } else if (period === 'month') {
+      dateFormat = '%Y-%m'; // Monthly
+    } else if (period === 'hour') {
+      dateFormat = '%Y-%m-%dT%H:00:00Z'; // Hourly
+    }
+
+    const timeTrend = await Transaction.aggregate([
+      {
+        $match: {
+          status: TRANSACTION_STATUS.FRAUD,
+          timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: dateFormat, date: '$timestamp' }
+          },
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json(timeTrend);
+  } catch (error) {
+    console.error('Error fetching time trend:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   GET /api/analytics/fraud-network
+ * @desc    Get fraud network statistics
+ * @access  Private (Admin)
+ */
+export const getFraudNetworkStats = async (req, res) => {
+  try {
+    const networkStats = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      {
+        $group: {
+          _id: null,
+          uniqueDevices: { $addToSet: '$deviceId' },
+          uniqueIPs: { $addToSet: '$ipAddress' },
+          uniqueCards: { $addToSet: '$cardNumber' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          uniqueDevices: { $size: '$uniqueDevices' },
+          uniqueIPs: { $size: '$uniqueIPs' },
+          uniqueCards: { $size: '$uniqueCards' }
+        }
+      }
+    ]);
+
+    res.json(networkStats[0] || { uniqueDevices: 0, uniqueIPs: 0, uniqueCards: 0 });
+  } catch (error) {
+    console.error('Error fetching fraud network stats:', error);
+    res.status(500).json({ m

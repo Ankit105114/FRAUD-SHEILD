@@ -1,0 +1,48 @@
+import admin from 'firebase-admin';
+
+let firebaseApp = null;
+let realtimeDb = null;
+
+export const initializeFirebase = async () => {
+  try {
+    if (firebaseApp) {
+      return firebaseApp;
+    }
+
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: privateKey,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    };
+
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: process.env.FIREBASE_DATABASE_URL,
+    });
+
+    realtimeDb = admin.database();
+
+    return firebaseApp;
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    throw error;
+  }
+};
+
+export const getRealtimeDatabase = () => {
+  if (!realtimeDb) {
+    throw new Error('Firebase not initialized. Call initializeFirebase() first.');
+  }
+  return realtimeDb;
+};
+
+export const getFirebaseAuth = () => {
+  if (!firebaseApp) {
+    throw new Error('Firebase not initialized. Call initializeFirebase() first.');
+  }
+  return admin.auth();
+};
+
+export default admin;

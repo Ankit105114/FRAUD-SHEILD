@@ -1,0 +1,519 @@
+import Transaction from '../models/Transaction.js';
+import { TRANSACTION_STATUS } from '../config/constants.js';
+import fraudDetectionEngine from '../services/fraudDetectionEngine.js';
+import realtimeSyncService from '../services/realtimeSync.js';
+
+/**
+ * @route   GET /api/analytics/dashboard
+ * @desc    Get dashboard statistics
+ * @access  Private (Admin role)
+ */
+export const getDashboardStats = async (req, res) => {
+  try {
+    const [totalTransactions, fraudDetected, safeTransactions, underReview] = await Promise.all([
+      Transaction.countDocuments(),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.FRAUD }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.SAFE }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.UNDER_REVIEW })
+    ]);
+
+    const detectionRate = totalTransactions > 0 
+      ? ((fraudDetected / totalTransactions) * 100).toFixed(2)
+      : 0;
+
+    const stats = {
+      totalTransactions,
+      fraudDetected,
+      safeTransactions,
+      underReview,
+      detectionRate: parseFloat(detectionRate)
+    };
+
+    await realtimeSyncService.syncDashboardStats(stats);
+
+    res.status(200).json({
+      status: 'success',
+      data: { stats }
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get dashboard stats',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudFunnel = async (req, res) => {
+  try {
+    const funnelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const funnel = {
+      new: 0,
+      underReview: 0,
+      flagged: 0,
+      fraud: 0
+    };
+
+    funnelData.forEach(item => {
+      if (item._id === TRANSACTION_STATUS.NEW) funnel.new = item.count;
+      if (item._id === TRANSACTION_STATUS.UNDER_REVIEW) funnel.underReview = item.count;
+      if (item._id === TRANSACTION_STATUS.FRAUD) funnel.fraud = item.count;
+    });
+
+    await realtimeSyncService.syncFraudFunnel(funnel);
+
+    res.status(200).json({
+      status: 'success',
+      data: { funnel }
+    });
+  } catch (error) {
+    console.error('Fraud funnel error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud funnel',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudByRegion = async (req, res) => {
+  try {
+    const regionData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      { $group: { _id: '$location', cases: { $sum: 1 } } },
+      { $sort: { cases: -1 } },
+      { $limit: 10 }
+    ]);
+
+    const total = regionData.reduce((sum, item) => sum + item.cases, 0);
+
+    const regions = regionData.map(item => ({
+      region: item._id,
+      cases: item.cases,
+      percentage: total > 0 ? ((item.cases / total) * 100).toFixed(2) : 0
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { regions }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud by region',
+      error: error.message
+    });
+  }
+};
+
+export const getChannelAnalysis = async (req, res) => {
+  try {
+    const channelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$channel',
+          totalTransactions: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const channels = channelData.map(item => ({
+      channel: item._id,
+      transactions: item.totalTransactions,
+      fraud: item.fraudCount,
+      fraudRate: item.totalTransactions > 0 
+        ? ((item.fraudCount / item.totalTransactions) * 100).toFixed(2)
+        : 0
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { channels }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get channel analysis',
+      error: error.message
+    });
+  }
+};
+
+export const getCustomerSegmentation = async (req, res) => {
+  try {
+    const segmentation = await Transaction.aggregate([
+      {
+        $bucket: {
+          groupBy: '$riskScore',
+          boundaries: [0, 50, 75, 101],
+          default: 'Other',
+          output: {
+            count: { $sum: 1 },
+            avgRiskScore: { $avg: '$riskScore' }
+          }
+        }
+      }
+    ]);
+
+    const segments = segmentation.map(item => {
+      let segment = 'Other';
+      if (item._id === 0) segment = 'Low Risk';
+      else if (item._id === 50) segment = 'Medium Risk';
+      else if (item._id === 75) segment = 'High Risk';
+
+      return {
+        segment,
+        count: item.count,
+        avgRiskScore: item.avgRiskScore.toFixed(2)
+      };
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { segments }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get customer segmentation',
+      error: error.message
+    });
+  }
+};
+
+export const getTimeTrend = async (req, res) => {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const trendData = await Transaction.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          totalTransactions: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          },
+          safeCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.SAFE] }, 1, 0] }
+          }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const trend = trendData.map(item => ({
+      month: monthNames[item._id.month - 1],
+      year: item._id.year,
+      total: item.totalTransactions,
+      fraud: item.fraudCount,
+      safe: item.safeCount
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { trend }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get time trend',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudNetworkStats = async (req, res) => {
+  try {
+    const networkStats = fraudDetectionEngine.getFraudNetworkStats();
+
+    res.status(200).json({
+      status: 'success',
+      data: { networkStats }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud network stats',
+      error: error.message
+    });
+  }
+};
+EOFcat > controllers/analyticsController.js << 'EOF'
+import Transaction from '../models/Transaction.js';
+import { TRANSACTION_STATUS } from '../config/constants.js';
+import fraudDetectionEngine from '../services/fraudDetectionEngine.js';
+import realtimeSyncService from '../services/realtimeSync.js';
+
+/**
+ * @route   GET /api/analytics/dashboard
+ * @desc    Get dashboard statistics
+ * @access  Private (Admin role)
+ */
+export const getDashboardStats = async (req, res) => {
+  try {
+    const [totalTransactions, fraudDetected, safeTransactions, underReview] = await Promise.all([
+      Transaction.countDocuments(),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.FRAUD }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.SAFE }),
+      Transaction.countDocuments({ status: TRANSACTION_STATUS.UNDER_REVIEW })
+    ]);
+
+    const detectionRate = totalTransactions > 0 
+      ? ((fraudDetected / totalTransactions) * 100).toFixed(2)
+      : 0;
+
+    const stats = {
+      totalTransactions,
+      fraudDetected,
+      safeTransactions,
+      underReview,
+      detectionRate: parseFloat(detectionRate)
+    };
+
+    await realtimeSyncService.syncDashboardStats(stats);
+
+    res.status(200).json({
+      status: 'success',
+      data: { stats }
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get dashboard stats',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudFunnel = async (req, res) => {
+  try {
+    const funnelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const funnel = {
+      new: 0,
+      underReview: 0,
+      flagged: 0,
+      fraud: 0
+    };
+
+    funnelData.forEach(item => {
+      if (item._id === TRANSACTION_STATUS.NEW) funnel.new = item.count;
+      if (item._id === TRANSACTION_STATUS.UNDER_REVIEW) funnel.underReview = item.count;
+      if (item._id === TRANSACTION_STATUS.FRAUD) funnel.fraud = item.count;
+    });
+
+    await realtimeSyncService.syncFraudFunnel(funnel);
+
+    res.status(200).json({
+      status: 'success',
+      data: { funnel }
+    });
+  } catch (error) {
+    console.error('Fraud funnel error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud funnel',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudByRegion = async (req, res) => {
+  try {
+    const regionData = await Transaction.aggregate([
+      { $match: { status: TRANSACTION_STATUS.FRAUD } },
+      { $group: { _id: '$location', cases: { $sum: 1 } } },
+      { $sort: { cases: -1 } },
+      { $limit: 10 }
+    ]);
+
+    const total = regionData.reduce((sum, item) => sum + item.cases, 0);
+
+    const regions = regionData.map(item => ({
+      region: item._id,
+      cases: item.cases,
+      percentage: total > 0 ? ((item.cases / total) * 100).toFixed(2) : 0
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { regions }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud by region',
+      error: error.message
+    });
+  }
+};
+
+export const getChannelAnalysis = async (req, res) => {
+  try {
+    const channelData = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$channel',
+          totalTransactions: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const channels = channelData.map(item => ({
+      channel: item._id,
+      transactions: item.totalTransactions,
+      fraud: item.fraudCount,
+      fraudRate: item.totalTransactions > 0 
+        ? ((item.fraudCount / item.totalTransactions) * 100).toFixed(2)
+        : 0
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { channels }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get channel analysis',
+      error: error.message
+    });
+  }
+};
+
+export const getCustomerSegmentation = async (req, res) => {
+  try {
+    const segmentation = await Transaction.aggregate([
+      {
+        $bucket: {
+          groupBy: '$riskScore',
+          boundaries: [0, 50, 75, 101],
+          default: 'Other',
+          output: {
+            count: { $sum: 1 },
+            avgRiskScore: { $avg: '$riskScore' }
+          }
+        }
+      }
+    ]);
+
+    const segments = segmentation.map(item => {
+      let segment = 'Other';
+      if (item._id === 0) segment = 'Low Risk';
+      else if (item._id === 50) segment = 'Medium Risk';
+      else if (item._id === 75) segment = 'High Risk';
+
+      return {
+        segment,
+        count: item.count,
+        avgRiskScore: item.avgRiskScore.toFixed(2)
+      };
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { segments }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get customer segmentation',
+      error: error.message
+    });
+  }
+};
+
+export const getTimeTrend = async (req, res) => {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const trendData = await Transaction.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          totalTransactions: { $sum: 1 },
+          fraudCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.FRAUD] }, 1, 0] }
+          },
+          safeCount: {
+            $sum: { $cond: [{ $eq: ['$status', TRANSACTION_STATUS.SAFE] }, 1, 0] }
+          }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const trend = trendData.map(item => ({
+      month: monthNames[item._id.month - 1],
+      year: item._id.year,
+      total: item.totalTransactions,
+      fraud: item.fraudCount,
+      safe: item.safeCount
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: { trend }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get time trend',
+      error: error.message
+    });
+  }
+};
+
+export const getFraudNetworkStats = async (req, res) => {
+  try {
+    const networkStats = fraudDetectionEngine.getFraudNetworkStats();
+
+    res.status(200).json({
+      status: 'success',
+      data: { networkStats }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get fraud network stats',
+      error: error.message
+    });
+  }
+};
