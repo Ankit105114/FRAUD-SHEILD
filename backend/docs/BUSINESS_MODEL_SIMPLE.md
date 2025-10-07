@@ -12,9 +12,9 @@
 
 ```
 Market Sizes:
-TAM: ████████████████████████████████████████ (200B)
-SAM: ███████████████ (50B)
-SOM: ███ (10B)
+TAM: ████████████████████████████████████████ (200B) Total Addressable Market
+SAM: ███████████████ (50B) Serviceable Addressable Market
+SOM: ███ (10B) Serviceable Obtainable Market
 ```
 
 ## Financial Metrics Table
