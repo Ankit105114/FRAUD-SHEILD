@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Shield, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from "@/lib/api";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -18,9 +19,16 @@ const Signup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -32,15 +40,48 @@ const Signup = () => {
 
     setIsLoading(true);
 
-    // Simulate signup
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // Real API call to backend
+      const response = await apiService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+      });
+
+      // Debug logging
+      console.log('Signup response:', response);
+      console.log('Response data:', response.data);
+
+      // Validate response structure
+      if (!response.data || !response.data.user || !response.data.token) {
+        throw new Error('Invalid response structure from server');
+      }
+
+      // Ensure user has role property
+      if (!response.data.user.role) {
+        response.data.user.role = 'user'; // Default to user role for new registrations
+      }
+
+      // Store JWT token in localStorage
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
       toast({
         title: "Account created!",
         description: "Welcome to FraudShield",
       });
+
       navigate("/dashboard");
-    }, 1000);
+    } catch (error) {
+      console.error('Signup error:', error);
+      toast({
+        title: "Signup failed",
+        description: "Please check your information and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -57,7 +98,7 @@ const Signup = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Create Account</h1>
-            <p className="text-sm text-muted-foreground">Get started with FraudShield</p>
+            <p className="text-sm text-muted-foreground">Join FraudShield today</p>
           </div>
         </div>
 
@@ -67,9 +108,9 @@ const Signup = () => {
             <Input
               id="name"
               type="text"
-              placeholder="John Doe"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => handleInputChange("name", e.target.value)}
+              placeholder="Enter your full name"
               required
             />
           </div>
@@ -79,9 +120,9 @@ const Signup = () => {
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              placeholder="Enter your email"
               required
             />
           </div>
@@ -91,9 +132,9 @@ const Signup = () => {
             <Input
               id="password"
               type="password"
-              placeholder="••••••••"
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={(e) => handleInputChange("password", e.target.value)}
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -103,27 +144,25 @@ const Signup = () => {
             <Input
               id="confirmPassword"
               type="password"
-              placeholder="••••••••"
               value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+              placeholder="Confirm your password"
               required
             />
           </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-gradient-to-r from-primary to-primary-glow hover:opacity-90"
-            disabled={isLoading}
-          >
+          <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Creating account..." : "Create Account"}
           </Button>
         </form>
 
-        <div className="mt-6 text-center text-sm">
-          <span className="text-muted-foreground">Already have an account? </span>
-          <Link to="/login" className="text-primary hover:underline font-medium">
-            Login
-          </Link>
+        <div className="mt-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link to="/login" className="text-primary hover:underline">
+              Sign in
+            </Link>
+          </p>
         </div>
       </Card>
     </div>

@@ -77,3 +77,21 @@ FraudShield uses **MongoDB** for persistent data storage and **Firebase** for re
 - **Test Live Sync**: Submit a transaction and watch dashboard update in real-time.
 
 This setup ensures secure, scalable data handling. For code examples, check `server.js`, `firebase.js`, and `realtimeSync.js`.
+
+
+
+
+┌─────────────┐    API Call    ┌─────────────┐    Database    ┌─────────────┐
+│  Frontend   │ ──────────────▶ │   Backend   │ ──────────────▶ │  MongoDB    │
+│   Forms     │                │    API      │                │   Storage   │
+└─────────────┘   JWT Token    └─────────────┘   Validation   └─────────────┘
+       │                          │                      │
+       │                          │                      │
+       └──────────────────────────┼──────────────────────┘
+                                  │
+                       Real-time Sync
+                                  ▼
+                         ┌─────────────┐
+                         │   Firebase  │
+                         │ Real-time DB│
+                         └─────────────┘
