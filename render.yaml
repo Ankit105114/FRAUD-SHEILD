@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: fraudshield-backend
+    runtime: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FIREBASE_API_KEY
+        value: "AIzaSyD3-dP7FMPOA1PyHewcx6XfSJFNvkLSnOE"
+      - key: FIREBASE_AUTH_DOMAIN
+        value: "fraud-detection-system-1c685.firebaseapp.com"
+      - key: FIREBASE_DATABASE_URL
+        value: "https://fraud-detection-system-1c685-default-rtdb.firebaseio.com"
+      - key: FIREBASE_PROJECT_ID
+        value: "fraud-detection-system-1c685"
+      - key: FIREBASE_STORAGE_BUCKET
+        value: "fraud-detection-system-1c685.firebasestorage.app"
+      - key: FIREBASE_MESSAGING_SENDER_ID
+        value: "23355196531"
+      - key: FIREBASE_APP_ID
+        value: "1:23355196531:web:3856e15984c583a3fad606"
+      - key: FIREBASE_MEASUREMENT_ID
+        value: "G-FLYW9H2GFV"
